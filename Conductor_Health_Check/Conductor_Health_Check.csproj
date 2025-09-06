@@ -23,4 +23,8 @@
       <ProjectReference Include="..\PowerShell\PowerShell.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+    </ItemGroup>
+
 </Project>

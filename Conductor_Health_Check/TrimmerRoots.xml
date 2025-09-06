@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<linker>
+  <!-- Preserve the Microsoft.AspNetCore.OpenApi assembly -->
+  <assembly fullname="Microsoft.AspNetCore.OpenApi" preserve="all" />
+  <assembly fullname="Microsoft.OpenApi" preserve="all" />
+  <assembly fullname="Swashbuckle.AspNetCore.Swagger" preserve="all" />
+  <assembly fullname="Swashbuckle.AspNetCore.SwaggerGen" preserve="all" />
+  <assembly fullname="Swashbuckle.AspNetCore.SwaggerUI" preserve="all" />
+</linker>
+

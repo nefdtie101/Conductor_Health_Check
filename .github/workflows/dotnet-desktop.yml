@@ -51,7 +51,7 @@ jobs:
           --self-contained true \
           --output ./publish/${{ matrix.os }} \
           -p:PublishSingleFile=true \
-          -p:PublishTrimmed=true
+          -p:PublishTrimmed=false
 
     - name: Create release directory
       run: |
