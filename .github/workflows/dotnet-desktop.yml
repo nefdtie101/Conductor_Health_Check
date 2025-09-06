@@ -1,6 +1,3 @@
-# This workflow builds and publishes the .NET application for multiple platforms
-# and uploads the binaries as downloadable artifacts
-
 name: Build and Publish Cross-Platform
 
 on:
@@ -9,189 +6,126 @@ on:
   pull_request:
     branches: [ "master" ]
 
+env:
+  # Used to stamp binaries
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+  DOTNET_NOLOGO: 1
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    outputs:
+      release_tag: ${{ steps.tag.outputs.tag }}
     strategy:
       matrix:
-        os: [windows, linux]
-        include:
+        target:
           - os: windows
             runtime: win-x64
-            artifact-name: conductor-health-check-windows
-            file-extension: .exe
+            ext: zip
+            artifact: conductor-health-check-windows
+            exe: Conductor_Health_Check.exe
           - os: linux
             runtime: linux-x64
-            artifact-name: conductor-health-check-linux
-            file-extension: ""
+            ext: tar.gz
+            artifact: conductor-health-check-linux
+            exe: Conductor_Health_Check
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '9.0.x'
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
 
-    - name: Restore dependencies
-      run: dotnet restore Conductor_Health_Check.sln
+      - name: Compute release tag
+        id: tag
+        run: |
+          TAG="v$(date -u +'%Y.%m.%d')-${GITHUB_SHA:0:7}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Release tag: $TAG"
 
-    - name: Run tests
-      run: dotnet test Conductor_Health_Check.sln --no-restore --verbosity normal
+      - name: Restore
+        run: dotnet restore Conductor_Health_Check.sln
 
-    - name: Publish application
-      run: |
-        dotnet publish Conductor_Health_Check/Conductor_Health_Check.csproj \
-          --configuration Release \
-          --runtime ${{ matrix.runtime }} \
-          --self-contained true \
-          --output ./publish/${{ matrix.os }} \
-          -p:PublishSingleFile=true \
-          -p:PublishTrimmed=true
+      - name: Test
+        run: dotnet test Conductor_Health_Check.sln --no-restore --verbosity normal
 
-    - name: Create release directory
-      run: |
-        mkdir -p ./release
-        cp -r ./publish/${{ matrix.os }}/* ./release/
-        
-    - name: Create zip archive for release
-      run: |
-        cd ./release
-        if [ "${{ matrix.os }}" == "windows" ]; then
-          zip -r ../conductor-health-check-${{ matrix.os }}-${{ github.sha }}.zip .
-        else
-          tar -czf ../conductor-health-check-${{ matrix.os }}-${{ github.sha }}.tar.gz .
-        fi
-        cd ..
-        
-    - name: List published files
-      run: ls -la ./release/
+      - name: Publish ${{ matrix.target.os }}
+        run: |
+          dotnet publish Conductor_Health_Check/Conductor_Health_Check.csproj \
+            -c Release \
+            -r ${{ matrix.target.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:PublishTrimmed=true \
+            -o out/${{ matrix.target.os }}
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact-name }}
-        path: ./release/
-        retention-days: 30
+      - name: Package ${{ matrix.target.os }}
+        run: |
+          mkdir -p dist
+          cd out/${{ matrix.target.os }}
 
-    - name: Upload release archives
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ matrix.artifact-name }}-archive
-        path: |
-          conductor-health-check-${{ matrix.os }}-${{ github.sha }}.zip
-          conductor-health-check-${{ matrix.os }}-${{ github.sha }}.tar.gz
-        retention-days: 30
+          # ensure Linux binary is executable
+          if [ "${{ matrix.target.os }}" = "linux" ]; then chmod +x "${{ matrix.target.exe }}"; fi
 
-  create-release-info:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    
-    steps:
-    - name: Create Release Info
-      run: |
-        echo "## 🚀 Build Artifacts Available" > release-info.md
-        echo "" >> release-info.md
-        echo "The following artifacts have been built and are available for download:" >> release-info.md
-        echo "" >> release-info.md
-        echo "- **Windows (x64)**: conductor-health-check-windows" >> release-info.md
-        echo "- **Linux Ubuntu (x64)**: conductor-health-check-linux" >> release-info.md
-        echo "" >> release-info.md
-        echo "### How to run:" >> release-info.md
-        echo "1. Download the appropriate artifact for your platform" >> release-info.md
-        echo "2. Extract the files" >> release-info.md
-        echo "3. Run the executable:" >> release-info.md
-        echo "   - Windows: \`Conductor_Health_Check.exe\`" >> release-info.md
-        echo "   - Linux: \`./Conductor_Health_Check\` (make sure it's executable: \`chmod +x Conductor_Health_Check\`)" >> release-info.md
-        echo "" >> release-info.md
-        echo "The application will start on http://localhost:5000 by default." >> release-info.md
-        
-    - name: Upload Release Info
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-info
-        path: release-info.md
+          # 1) versioned file
+          VER_FILE="${{ matrix.target.artifact }}-${{ steps.tag.outputs.tag }}.${{ matrix.target.ext }}"
+          # 2) latest file (constant name)
+          LATEST_FILE="${{ matrix.target.artifact }}.${{ matrix.target.ext }}"
 
-  create-github-release:
+          if [ "${{ matrix.target.ext }}" = "zip" ]; then
+            zip -r "../../dist/$VER_FILE" .
+            cp "../../dist/$VER_FILE" "../../dist/$LATEST_FILE"
+          else
+            tar -czf "../../dist/$VER_FILE" .
+            cp "../../dist/$VER_FILE" "../../dist/$LATEST_FILE"
+          fi
+
+          cd -
+
+      - name: Upload packaged artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target.artifact }}-packaged
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
     needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     permissions:
       contents: write
-    
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          # grabs both linux and windows packaged artifacts into ./artifacts
+          path: artifacts
 
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: ./artifacts
+      - name: Show files
+        run: find artifacts -type f -maxdepth 3 -print
 
-    - name: Display structure of downloaded files
-      run: ls -la ./artifacts/
-
-    - name: Generate release tag
-      id: tag
-      run: |
-        TAG="v$(date +'%Y.%m.%d')-${GITHUB_SHA:0:7}"
-        echo "tag=$TAG" >> $GITHUB_OUTPUT
-        echo "Generated tag: $TAG"
-
-    - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        release_name: "Release ${{ steps.tag.outputs.tag }}"
-        body: |
-          ## 🚀 Conductor Health Check Release
-          
-          This release contains cross-platform binaries for the Conductor Health Check application.
-          
-          ### Available Downloads:
-          - **Windows (x64)**: Download the `.zip` file
-          - **Linux (x64)**: Download the `.tar.gz` file
-          
-          ### How to run:
-          1. Download the appropriate file for your platform
-          2. Extract the archive
-          3. Run the executable:
-             - Windows: `Conductor_Health_Check.exe`
-             - Linux: `./Conductor_Health_Check` (make executable first: `chmod +x Conductor_Health_Check`)
-          
-          The application will start on http://localhost:5000 by default.
-          
-          **Built from commit**: ${{ github.sha }}
-          **Build date**: $(date +'%Y-%m-%d %H:%M:%S UTC')
-        draft: false
-        prerelease: false
-
-    - name: Upload Windows Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./artifacts/conductor-health-check-windows-archive/conductor-health-check-windows-${{ github.sha }}.zip
-        asset_name: conductor-health-check-windows-${{ steps.tag.outputs.tag }}.zip
-        asset_content_type: application/zip
-
-    - name: Upload Linux Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./artifacts/conductor-health-check-linux-archive/conductor-health-check-linux-${{ github.sha }}.tar.gz
-        asset_name: conductor-health-check-linux-${{ steps.tag.outputs.tag }}.tar.gz
-        asset_content_type: application/gzip
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.build.outputs.release_tag }}
+          name: Release ${{ needs.build.outputs.release_tag }}
+          body: |
+            ## Conductor Health Check
+            Cross-platform binaries (Windows & Linux).
+            - Windows: `conductor-health-check-windows.zip` (also `-<tag>.zip`)
+            - Linux: `conductor-health-check-linux.tar.gz` (also `-<tag>.tar.gz`)
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/conductor-health-check-windows.zip
+            artifacts/**/conductor-health-check-linux.tar.gz
+            artifacts/**/conductor-health-check-windows-*.zip
+            artifacts/**/conductor-health-check-linux-*.tar.gz
