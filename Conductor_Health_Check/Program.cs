@@ -1,5 +1,6 @@
 using Bash;
 using Conductor_Health_Check;
+using Conductor_Health_Check.Services;
 using PowerShell;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,6 +16,8 @@ builder.Services.AddHealthChecks();
 builder.Services.AddSingleton<PowershellRunner>();
 builder.Services.AddSingleton<BashRunner>();
 
+// Add LogService
+builder.Services.AddSingleton<LogService>();
 
 // Register configuration for dependency injection
 builder.Services.AddSingleton<IConfiguration>(builder.Configuration);

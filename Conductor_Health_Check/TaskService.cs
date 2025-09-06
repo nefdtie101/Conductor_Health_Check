@@ -1,4 +1,5 @@
 using Bash;
+using Conductor_Health_Check.Services;
 using PowerShell;
 
 namespace Conductor_Health_Check;
@@ -7,23 +8,23 @@ public class TaskService : IHostedService, IDisposable
 {
     private Timer _timer;
     private readonly IConfiguration _configuration;
+    private readonly LogService _logService;
     
     private BashRunner _bashRunner;
     private PowershellRunner _powershellRunner;
     
-    public TaskService(IConfiguration configuration)
+    public TaskService(IConfiguration configuration, LogService logService)
     {
         _configuration = configuration;
+        _logService = logService;
     }
     
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        // Run immediately on start
         DoWork(null);
         
         var now = DateTime.Now;
-    
-        // Align first run to the next 20-minute boundary (e.g., :00, :20, :40)
+        
         var minutesToNextSlot = (20 - (now.Minute % 20)) % 20;
         var nextRun = now.AddMinutes(minutesToNextSlot)
             .AddSeconds(-now.Second)
@@ -45,21 +46,18 @@ private void DoWork(object state)
             string result;
             if (OperatingSystem.IsWindows())
             {
-                // Use PowerShell on Windows
                 result = PowershellRunner.ExecuteCommand($"Test-Connection -ComputerName {gatewayIP} -Count 4 -Quiet");
-                Console.WriteLine($"VPN Gateway ping status: {result}");
+                _logService.Log($"VPN Gateway ping status: {result}");
             }
             else
             {
-                // Use Bash on Linux/macOS
                 result = BashRunner.ExecuteCommand($"ping -c 4 {gatewayIP}");
-                Console.WriteLine($"VPN Gateway ping result: {result}");
+                _logService.Log($"VPN Gateway ping result: {result}");
             }
         }
         catch (InvalidOperationException ex)
         {
-            Console.WriteLine($"VPN connection check failed: {ex.Message}");
-            // Implement any notification or recovery logic here
+            _logService.Log($"VPN connection check failed: {ex.Message}");
         }
     }
     
