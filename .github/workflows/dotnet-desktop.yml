@@ -58,6 +58,16 @@ jobs:
         mkdir -p ./release
         cp -r ./publish/${{ matrix.os }}/* ./release/
         
+    - name: Create zip archive for release
+      run: |
+        cd ./release
+        if [ "${{ matrix.os }}" == "windows" ]; then
+          zip -r ../conductor-health-check-${{ matrix.os }}-${{ github.sha }}.zip .
+        else
+          tar -czf ../conductor-health-check-${{ matrix.os }}-${{ github.sha }}.tar.gz .
+        fi
+        cd ..
+        
     - name: List published files
       run: ls -la ./release/
 
@@ -66,6 +76,15 @@ jobs:
       with:
         name: ${{ matrix.artifact-name }}
         path: ./release/
+        retention-days: 30
+
+    - name: Upload release archives
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact-name }}-archive
+        path: |
+          conductor-health-check-${{ matrix.os }}-${{ github.sha }}.zip
+          conductor-health-check-${{ matrix.os }}-${{ github.sha }}.tar.gz
         retention-days: 30
 
   create-release-info:
@@ -97,3 +116,82 @@ jobs:
       with:
         name: release-info
         path: release-info.md
+
+  create-github-release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ./artifacts
+
+    - name: Display structure of downloaded files
+      run: ls -la ./artifacts/
+
+    - name: Generate release tag
+      id: tag
+      run: |
+        TAG="v$(date +'%Y.%m.%d')-${GITHUB_SHA:0:7}"
+        echo "tag=$TAG" >> $GITHUB_OUTPUT
+        echo "Generated tag: $TAG"
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.tag }}
+        release_name: "Release ${{ steps.tag.outputs.tag }}"
+        body: |
+          ## 🚀 Conductor Health Check Release
+          
+          This release contains cross-platform binaries for the Conductor Health Check application.
+          
+          ### Available Downloads:
+          - **Windows (x64)**: Download the `.zip` file
+          - **Linux (x64)**: Download the `.tar.gz` file
+          
+          ### How to run:
+          1. Download the appropriate file for your platform
+          2. Extract the archive
+          3. Run the executable:
+             - Windows: `Conductor_Health_Check.exe`
+             - Linux: `./Conductor_Health_Check` (make executable first: `chmod +x Conductor_Health_Check`)
+          
+          The application will start on http://localhost:5000 by default.
+          
+          **Built from commit**: ${{ github.sha }}
+          **Build date**: $(date +'%Y-%m-%d %H:%M:%S UTC')
+        draft: false
+        prerelease: false
+
+    - name: Upload Windows Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./artifacts/conductor-health-check-windows-archive/conductor-health-check-windows-${{ github.sha }}.zip
+        asset_name: conductor-health-check-windows-${{ steps.tag.outputs.tag }}.zip
+        asset_content_type: application/zip
+
+    - name: Upload Linux Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./artifacts/conductor-health-check-linux-archive/conductor-health-check-linux-${{ github.sha }}.tar.gz
+        asset_name: conductor-health-check-linux-${{ steps.tag.outputs.tag }}.tar.gz
+        asset_content_type: application/gzip
