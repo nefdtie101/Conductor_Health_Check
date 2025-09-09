@@ -156,6 +156,7 @@ jobs:
         [Unit]
         Description=Conductor Health Check Service
         After=network.target
+        StartLimitIntervalSec=0
 
         [Service]
         Type=simple
@@ -167,6 +168,13 @@ jobs:
         User=root
         Environment=ASPNETCORE_ENVIRONMENT=Production
         Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+        Environment=HOME=/root
+        Environment=DOTNET_CLI_HOME=/root
+        Environment=DOTNET_ROOT=/usr/share/dotnet
+        StandardOutput=journal
+        StandardError=journal
+        KillSignal=SIGINT
+        TimeoutStopSec=30
 
         [Install]
         WantedBy=multi-user.target
