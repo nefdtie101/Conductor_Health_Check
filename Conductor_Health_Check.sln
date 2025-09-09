@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Bash", "Bash\Bash.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PowerShell", "PowerShell\PowerShell.csproj", "{1FD73B0B-A694-4605-99E6-DFB5FF54D56F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker", "Broker\Broker.csproj", "{422FD6CE-6956-4BAB-9EE8-BE29B236EBF5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{1FD73B0B-A694-4605-99E6-DFB5FF54D56F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1FD73B0B-A694-4605-99E6-DFB5FF54D56F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1FD73B0B-A694-4605-99E6-DFB5FF54D56F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{422FD6CE-6956-4BAB-9EE8-BE29B236EBF5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{422FD6CE-6956-4BAB-9EE8-BE29B236EBF5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{422FD6CE-6956-4BAB-9EE8-BE29B236EBF5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{422FD6CE-6956-4BAB-9EE8-BE29B236EBF5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

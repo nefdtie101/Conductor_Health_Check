@@ -1,4 +1,5 @@
 using Bash;
+using Broker;
 using Conductor_Health_Check;
 using Conductor_Health_Check.Services;
 using PowerShell;
@@ -10,11 +11,14 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHttpClient();
+
 // Add health checks
 builder.Services.AddHealthChecks();
 
 builder.Services.AddSingleton<PowershellRunner>();
 builder.Services.AddSingleton<BashRunner>();
+builder.Services.AddSingleton<SmsBroker>();
 
 // Add LogService
 builder.Services.AddSingleton<LogService>();
