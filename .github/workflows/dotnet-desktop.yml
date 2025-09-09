@@ -57,6 +57,80 @@ jobs:
       run: |
         mkdir -p ./release
         cp -r ./publish/${{ matrix.os }}/* ./release/
+
+    - name: Create Linux service installation script
+      if: matrix.os == 'linux'
+      run: |
+        cat > ./release/install-service.sh << 'EOF'
+        #!/bin/bash
+        set -e
+
+        # Must run as root
+        if [ "$(id -u)" -ne 0 ]; then
+          echo "This script must be run as root" >&2
+          exit 1
+        fi
+
+        # Determine installation location
+        INSTALL_DIR="/opt/conductor-health-check"
+        SERVICE_NAME="conductor-health-check"
+        EXECUTABLE="Conductor_Health_Check"
+        CURRENT_DIR=$(pwd)
+
+        echo "Installing Conductor Health Check as a systemd service..."
+
+        # Create installation directory
+        mkdir -p $INSTALL_DIR
+        
+        # Copy all files to installation directory
+        cp -r $CURRENT_DIR/* $INSTALL_DIR/
+        
+        # Ensure the executable has proper permissions
+        chmod +x $INSTALL_DIR/$EXECUTABLE
+        
+        # Create systemd service file
+        cat > /etc/systemd/system/$SERVICE_NAME.service << 'SERVICEEOF'
+        [Unit]
+        Description=Conductor Health Check Service
+        After=network.target
+
+        [Service]
+        Type=simple
+        WorkingDirectory=/opt/conductor-health-check
+        ExecStart=/opt/conductor-health-check/Conductor_Health_Check
+        Restart=always
+        RestartSec=10
+        SyslogIdentifier=conductor-health-check
+        User=root
+        Environment=ASPNETCORE_ENVIRONMENT=Production
+        Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+
+        [Install]
+        WantedBy=multi-user.target
+        SERVICEEOF
+
+        # Reload systemd, enable and start the service
+        systemctl daemon-reload
+        systemctl enable $SERVICE_NAME
+        systemctl start $SERVICE_NAME
+        
+        echo "Service installed and started successfully!"
+        echo "Management commands:"
+        echo "  Check status: sudo systemctl status $SERVICE_NAME"
+        echo "  Start service: sudo systemctl start $SERVICE_NAME"
+        echo "  Stop service: sudo systemctl stop $SERVICE_NAME"
+        echo "  Restart service: sudo systemctl restart $SERVICE_NAME"
+        echo "  View logs: sudo journalctl -u $SERVICE_NAME -f"
+        echo ""
+        echo "To uninstall the service:"
+        echo "  sudo systemctl stop $SERVICE_NAME"
+        echo "  sudo systemctl disable $SERVICE_NAME"
+        echo "  sudo rm /etc/systemd/system/$SERVICE_NAME.service"
+        echo "  sudo rm -rf $INSTALL_DIR"
+        echo "  sudo systemctl daemon-reload"
+        EOF
+        
+        chmod +x ./release/install-service.sh
         
     - name: Create zip archive for release
       run: |
@@ -162,15 +236,28 @@ jobs:
           This release contains cross-platform binaries for the Conductor Health Check application.
           
           Available Downloads:
-          Windows (x64): Download the .zip file
-          Linux (x64): Download the .tar.gz file
+          - Windows (x64): Download the .zip file
+          - Linux (x64): Download the .tar.gz file
           
           How to run:
           1. Download the appropriate file for your platform
           2. Extract the archive
           3. Run the executable:
-             Windows: Conductor_Health_Check.exe
-             Linux: ./Conductor_Health_Check (make executable first: chmod +x Conductor_Health_Check)
+             - Windows: Conductor_Health_Check.exe
+             - Linux: ./Conductor_Health_Check (make executable first: chmod +x Conductor_Health_Check)
+          
+          Installing as Linux Service:
+          For Linux users, a service installation script is included. To install as a systemd service:
+          1. Extract the Linux artifact
+          2. Make the script executable: chmod +x install-service.sh
+          3. Run with sudo: sudo ./install-service.sh
+          4. The service will be installed, enabled and started automatically
+          
+          Service management commands:
+          - Check status: sudo systemctl status conductor-health-check
+          - Start service: sudo systemctl start conductor-health-check
+          - Stop service: sudo systemctl stop conductor-health-check
+          - View logs: sudo journalctl -u conductor-health-check -f
           
           The application will start on http://localhost:5000 by default.
           
